@@ -170,6 +170,11 @@ export class TodoListComponent extends HTMLElement {
       .map(p => `<option value="${esc(p)}"${p === cfg.defaults.priority ? ' selected' : ''}>${esc(PRIORITY_LABELS[p])}</option>`)
       .join('');
 
+    // Build status options for the add form (all enabled statuses)
+    const statusOptions = enabledStatuses
+      .map(s => `<option value="${esc(s)}"${s === cfg.defaults.status ? ' selected' : ''}>${esc(STATUS_LABELS[s])}</option>`)
+      .join('');
+
     const ownerField = cfg.ui.showOwner ? `
       <div class="todo-field">
         <label for="todo-owner-input">Owner</label>
@@ -224,6 +229,12 @@ export class TodoListComponent extends HTMLElement {
                   />
                 </div>
                 ${ownerField}
+                <div class="todo-field">
+                  <label for="todo-status-select">Status</label>
+                  <select id="todo-status-select" class="todo-select" name="status" data-input-status>
+                    ${statusOptions}
+                  </select>
+                </div>
                 <div class="todo-field">
                   <label for="todo-priority-select">Priority</label>
                   <select id="todo-priority-select" class="todo-select" name="priority" data-input-priority>
@@ -445,6 +456,7 @@ export class TodoListComponent extends HTMLElement {
   _handleAdd() {
     const detailInput = this._shadow.querySelector('[data-input-detail]');
     const ownerInput = this._shadow.querySelector('[data-input-owner]');
+    const statusInput = this._shadow.querySelector('[data-input-status]');
     const priorityInput = this._shadow.querySelector('[data-input-priority]');
 
     const detail = detailInput?.value.trim();
@@ -457,8 +469,8 @@ export class TodoListComponent extends HTMLElement {
       this._collection.add({
         detail,
         owner: ownerInput?.value.trim() || this._config.defaults.owner || '',
-        priority: priorityInput?.value || this._config.defaults.priority,
-        status: this._config.defaults.status
+        status: statusInput?.value || this._config.defaults.status,
+        priority: priorityInput?.value || this._config.defaults.priority
       });
 
       if (detailInput) detailInput.value = '';

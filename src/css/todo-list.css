@@ -57,7 +57,8 @@
   border: 1px solid var(--todo-border);
   border-radius: var(--todo-radius);
   box-shadow: var(--todo-shadow);
-  overflow: hidden;
+  /* overflow:hidden removed — it clipped the absolutely-positioned status dropdown.
+     Rounded corners on header/footer are applied directly below instead. */
 }
 
 /* ─── Header ──────────────────────────────────────────────────────────────── */
@@ -68,6 +69,8 @@
   padding: 0.875rem 1rem;
   background: var(--todo-bg-alt);
   border-bottom: 1px solid var(--todo-border);
+  /* Clip header bg to wrapper's rounded top corners */
+  border-radius: var(--todo-radius) var(--todo-radius) 0 0;
 }
 
 .todo-header__title {
@@ -514,6 +517,8 @@
   background: var(--todo-bg-alt);
   font-size: 0.75rem;
   color: var(--todo-text-muted);
+  /* Clip footer bg to wrapper's rounded bottom corners */
+  border-radius: 0 0 var(--todo-radius) var(--todo-radius);
 }
 
 .todo-footer__clear {

@@ -43,7 +43,36 @@ test('adds a new task via the form', async ({ page }) => {
   await expect(todo(page).locator('.todo-item__detail').first()).toContainText('Write Playwright tests');
 });
 
-// ─── 3. Status change ─────────────────────────────────────────────────────────
+test('add form has a status selector and respects chosen status', async ({ page }) => {
+  const statusSelect = todo(page).locator('[data-input-status]');
+  await expect(statusSelect).toBeVisible();
+
+  // Select "In Progress" before adding
+  await statusSelect.selectOption('INP');
+  await todo(page).locator('[data-input-detail]').fill('Already in progress');
+  await todo(page).locator('[data-add-submit]').click();
+
+  // Badge should reflect the selected status, not default NYS
+  await expect(todo(page).locator('[data-status-badge]').first()).toContainText('In Progress');
+});
+
+// ─── 3a. Status change — dropdown is visible (not clipped by overflow:hidden) ─
+test('status dropdown is visually visible after opening', async ({ page }) => {
+  await todo(page).locator('[data-input-detail]').fill('Overflow test');
+  await todo(page).locator('[data-add-submit]').click();
+
+  const badge = todo(page).locator('[data-status-badge]').first();
+  await badge.click();
+
+  // The dropdown must be visible in the viewport, not clipped
+  const dropdown = todo(page).locator('.todo-status-dropdown.is-open').first();
+  await expect(dropdown).toBeVisible();
+  const box = await dropdown.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box.height).toBeGreaterThan(0);
+});
+
+// ─── 3b. Status change via badge dropdown ─────────────────────────────────────
 test('changes status via badge dropdown', async ({ page }) => {
   await todo(page).locator('[data-input-detail]').fill('Test status change');
   await todo(page).locator('[data-add-submit]').click();
