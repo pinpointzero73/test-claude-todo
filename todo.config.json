@@ -1,0 +1,13 @@
+{
+  "storage": { "namespace": "todo", "version": 1 },
+  "defaults": { "owner": "", "status": "NYS", "priority": "MED" },
+  "statuses": {
+    "enabled": ["NYS", "INP", "INR", "BLK", "CMP", "CAN", "DEF"],
+    "terminal": ["CMP", "CAN"]
+  },
+  "ui": {
+    "showOwner": true,
+    "confirmOnDelete": true,
+    "dateFormat": "DD/MM/YYYY HH:mm"
+  }
+}

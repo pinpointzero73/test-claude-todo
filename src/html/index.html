@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Todo List Component — Dev</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 2rem 1rem;
+      background: #f1f5f9;
+      min-height: 100vh;
+    }
+    .demo-wrapper {
+      max-width: 680px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+    h1 { font-size: 1.25rem; color: #1e293b; margin: 0 0 0.25rem; }
+    .demo-meta { font-size: 0.8125rem; color: #64748b; margin: 0; }
+    .event-log {
+      background: #1e293b;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      color: #94a3b8;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.75rem;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .event-log__title {
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    .event-log__entry { margin: 0.125rem 0; line-height: 1.5; }
+    .event-log__type { color: #818cf8; }
+
+    /* Theming demo */
+    .demo-themed {
+      --todo-primary: #059669;
+      --todo-primary-hover: #047857;
+      --todo-border-focus: #059669;
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-wrapper">
+    <div>
+      <h1>Todo List Web Component</h1>
+      <p class="demo-meta">Standalone, zero-dependency &lt;todo-list&gt; — powered by Shadow DOM + localStorage</p>
+    </div>
+
+    <todo-list
+      id="todo-main"
+      config-url="./todo.config.json"
+    ></todo-list>
+
+    <div>
+      <p class="demo-meta" style="margin-bottom:0.75rem;">Themed instance (green primary)</p>
+      <todo-list
+        id="todo-themed"
+        class="demo-themed"
+        config-url="./todo.config.json"
+        owner="demo"
+      ></todo-list>
+    </div>
+
+    <div>
+      <div class="event-log__title">Custom Event Log</div>
+      <div class="event-log" id="event-log">
+        <div class="event-log__entry" style="color:#475569">Waiting for events…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- IIFE build registers <todo-list> and exposes window.TodoList for tests -->
+  <script src="./todo-list.iife.js"></script>
+  <script>
+    const log = document.getElementById('event-log');
+    let entryCount = 0;
+
+    function logEvent(e) {
+      entryCount++;
+      if (entryCount === 1) log.textContent = '';
+
+      // Build entry using DOM methods — no innerHTML with untrusted data
+      const entry = document.createElement('div');
+      entry.className = 'event-log__entry';
+
+      const typeSpan = document.createElement('span');
+      typeSpan.className = 'event-log__type';
+      typeSpan.textContent = e.type;
+
+      const sep = document.createTextNode(' — ');
+
+      const detailSpan = document.createElement('span');
+      // Safely serialise detail; textContent prevents any HTML injection
+      detailSpan.textContent = JSON.stringify(e.detail?.item?.detail ?? e.detail);
+
+      entry.appendChild(typeSpan);
+      entry.appendChild(sep);
+      entry.appendChild(detailSpan);
+
+      log.prepend(entry);
+    }
+
+    ['todo:add', 'todo:update', 'todo:remove'].forEach(name => {
+      document.addEventListener(name, logEvent);
+    });
+
+    customElements.whenDefined('todo-list').then(() => {
+      console.log('[Demo] todo-list ready. Public API on #todo-main.');
+      console.log('[Demo] Try: document.getElementById("todo-main").addItem({ detail: "API-added item" })');
+    });
+  </script>
+</body>
+</html>

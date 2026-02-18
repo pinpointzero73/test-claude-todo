@@ -1,0 +1,25 @@
+{
+  "name": "todo-list-component",
+  "version": "1.0.0",
+  "description": "Standalone zero-dependency Todo List Web Component",
+  "type": "module",
+  "main": "dist/todo-list.iife.js",
+  "module": "dist/todo-list.esm.js",
+  "scripts": {
+    "dev": "rollup -c --watch & live-server dist --port=${DEV_PORT:-3100} --no-browser & wait",
+    "build": "rollup -c",
+    "build:prod": "NODE_ENV=production rollup -c",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@rollup/plugin-node-resolve": "^15.3.0",
+    "@rollup/plugin-replace": "^5.0.7",
+    "@rollup/plugin-terser": "^0.4.4",
+    "dotenv": "^16.4.5",
+    "live-server": "^1.2.2",
+    "rollup": "^4.24.0",
+    "rollup-plugin-string": "^3.0.0"
+  }
+}
