@@ -28,6 +28,12 @@ export class TodoCollection {
       raw.forEach(data => {
         const model = new TodoModel(data);
         this._items.set(model.get('id'), model);
+        // Register the same listener that add() wires — without this,
+        // model.set() on a loaded item fires no collection event and the UI never updates.
+        model.onChange(() => {
+          this._save();
+          this._notify('update', model);
+        });
       });
     }
   }
@@ -116,9 +122,10 @@ export class TodoCollection {
     return this.filter(m => m.get('owner') === owner);
   }
 
-  /** Remove all items with terminal status */
-  clearCompleted() {
-    this.filter(m => TERMINAL_STATUSES.includes(m.get('status'))).forEach(m => this.remove(m.get('id')));
+  /** Permanently remove all terminal-status and is_archived items */
+  clearArchive() {
+    this.filter(m => TERMINAL_STATUSES.includes(m.get('status')) || m.get('is_archived'))
+      .forEach(m => this.remove(m.get('id')));
   }
 
   /** Wipe all items from memory and storage */

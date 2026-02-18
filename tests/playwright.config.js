@@ -12,9 +12,8 @@ export default defineConfig({
     trace: 'on-first-retry'
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit',  use: { ...devices['Desktop Safari'] } }
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } }
+    // firefox and webkit require additional system deps — install via: npx playwright install-deps
   ],
   webServer: {
     command: 'npx live-server dist --port=3100 --no-browser --quiet',

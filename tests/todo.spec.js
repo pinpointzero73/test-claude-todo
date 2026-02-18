@@ -173,20 +173,25 @@ test('emits todo:add custom event when item is added', async ({ page }) => {
   expect(detail).toBe('Event emission test');
 });
 
-// ─── 9. Clear completed ───────────────────────────────────────────────────────
-test('clears completed items via footer button', async ({ page }) => {
+// ─── 9. Archive: completed tasks move out of main list ────────────────────────
+test('completed tasks move to archive and can be cleared', async ({ page }) => {
   await todo(page).locator('[data-input-detail]').fill('Complete me');
   await todo(page).locator('[data-add-submit]').click();
 
-  // Mark as Complete
+  // Mark as Complete — item should leave the main list immediately
   await todo(page).locator('[data-status-badge]').first().click();
   await todo(page).locator('[data-status-option="CMP"]').first().click();
 
-  await expect(todo(page).locator('.todo-item').first()).toBeVisible();
-
-  await todo(page).locator('[data-clear-completed]').click();
-
+  // Main list is now empty
   await expect(todo(page).locator('.todo-empty__text')).toBeVisible();
+
+  // Archive panel shows the completed item — expand it first
+  await page.locator('todo-list').first().locator('[data-archive-toggle]').click();
+  await expect(page.locator('todo-list').first().locator('[data-archive-list] .todo-archive__row').first()).toBeVisible();
+
+  // Clear archive
+  await page.locator('todo-list').first().locator('[data-clear-archive]').click();
+  await expect(page.locator('todo-list').first().locator('[data-archive-list] .todo-archive__empty')).toBeVisible();
 });
 
 // ─── 10. Inline edit ──────────────────────────────────────────────────────────
@@ -210,7 +215,75 @@ test('edits task detail inline on click', async ({ page }) => {
   await expect(todo(page).locator('.todo-item__detail').first()).toContainText('Updated text');
 });
 
-// ─── 11. Public API ───────────────────────────────────────────────────────────
+// ─── 11. Priority badge ───────────────────────────────────────────────────────
+test('priority badge is visible and can be changed via dropdown', async ({ page }) => {
+  await todo(page).locator('[data-input-detail]').fill('Priority test');
+  await todo(page).locator('[data-add-submit]').click();
+
+  // Default priority badge should be visible
+  const priorityBadge = todo(page).locator('[data-priority-badge]').first();
+  await expect(priorityBadge).toBeVisible();
+  await expect(priorityBadge).toContainText('Medium');
+
+  // Click badge to open dropdown
+  await priorityBadge.click();
+  const priorityDropdown = todo(page).locator('.todo-priority-dropdown.is-open').first();
+  await expect(priorityDropdown).toBeVisible();
+
+  // Select High
+  await todo(page).locator('[data-priority-option="HIGH"]').first().click();
+  await expect(priorityBadge).toContainText('High');
+});
+
+// ─── 12. Archive: delete (soft) and restore ───────────────────────────────────
+test('deleted task moves to archive and can be restored', async ({ page }) => {
+  await todo(page).locator('[data-input-detail]').fill('To be archived');
+  await todo(page).locator('[data-add-submit]').click();
+
+  // Delete (soft) — accepts the confirm dialog
+  page.once('dialog', d => d.accept());
+  await todo(page).locator('[data-delete]').first().click();
+
+  // Main list shows empty state
+  await expect(todo(page).locator('.todo-empty__text')).toBeVisible();
+
+  // Archive panel contains the item
+  await page.locator('todo-list').first().locator('[data-archive-toggle]').click();
+  await expect(page.locator('todo-list').first().locator('[data-archive-list] .todo-archive__row').first()).toBeVisible();
+
+  // Restore it
+  await page.locator('todo-list').first().locator('[data-restore]').first().click();
+
+  // Back in the main list
+  await expect(todo(page).locator('.todo-item__detail').first()).toContainText('To be archived');
+});
+
+// ─── 13. Regression: loaded items remain reactive after page reload ───────────
+// Regression for _load() not registering model.onChange() — model.set() on a
+// persisted item updated internal data silently but fired no collection events,
+// so _refreshList() was never called and the UI never reflected the change.
+test('priority and status changes persist and reflect in UI after page reload', async ({ page }) => {
+  // Add a task, then reload — the item is now loaded via _load(), not add()
+  await todo(page).locator('[data-input-detail]').fill('Reload reactivity test');
+  await todo(page).locator('[data-add-submit]').click();
+  await expect(todo(page).locator('.todo-item__detail').first()).toContainText('Reload reactivity test');
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+
+  const item = todo(page).locator('.todo-item').first();
+
+  // Change priority on a loaded item — must update badge in UI (not just in memory)
+  await item.locator('[data-priority-badge]').click();
+  await item.locator('[data-priority-option="HIGH"]').click();
+  await expect(item.locator('[data-priority-badge]')).toContainText('High');
+
+  // Change status on a loaded item — must update badge in UI
+  await item.locator('[data-status-badge]').click();
+  await item.locator('[data-status-option="INP"]').click();
+  await expect(item.locator('[data-status-badge]')).toContainText('In Progress');
+});
+
+// ─── 14. Public API ───────────────────────────────────────────────────────────
 test('addItem() public API works', async ({ page }) => {
   await page.evaluate(() => {
     document.querySelector('todo-list').addItem({ detail: 'Added via API' });

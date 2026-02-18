@@ -25,6 +25,10 @@ const ICON_TRASH = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox=
   <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
 </svg>`;
 
+const ICON_CHEVRON_DOWN = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="todo-archive__chevron">
+  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+</svg>`;
+
 const DEFAULT_CONFIG = {
   storage: { namespace: 'todo', version: 1 },
   defaults: { owner: '', status: STATUS.NYS, priority: PRIORITY.MED },
@@ -68,6 +72,7 @@ export class TodoListComponent extends HTMLElement {
     this._collection = null;
     this._activeFilter = 'ALL';
     this._collapsed = false;
+    this._archiveCollapsed = true;
     this._unsubscribe = null;
     this._outsideClickHandler = null;
   }
@@ -249,8 +254,34 @@ export class TodoListComponent extends HTMLElement {
           <ul class="todo-list" data-list role="list"></ul>
 
           <div class="todo-footer">
-            <span data-footer-text>0 items</span>
-            <button class="todo-footer__clear" data-clear-completed>Clear completed</button>
+            <span data-footer-text>0 active</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="todo-archive-card" data-archive-card>
+        <button class="todo-archive__toggle" data-archive-toggle aria-expanded="false">
+          <span class="todo-archive__title">Archive</span>
+          <span class="todo-archive__count" data-archive-count>0</span>
+          ${ICON_CHEVRON_DOWN}
+        </button>
+        <div class="todo-archive__body" data-archive-body>
+          <div class="todo-archive__scroll">
+            <table class="todo-archive__table">
+              <thead>
+                <tr>
+                  <th>Task</th>
+                  <th>Status</th>
+                  <th>Priority</th>
+                  <th>Date</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody data-archive-list></tbody>
+            </table>
+          </div>
+          <div class="todo-archive__footer">
+            <button class="todo-footer__clear" data-clear-archive>Clear archive</button>
           </div>
         </div>
       </div>
@@ -269,17 +300,17 @@ export class TodoListComponent extends HTMLElement {
     const list = this._shadow.querySelector('[data-list]');
     if (!list) return;
 
-    const items = this._activeFilter === 'ALL'
+    // Active items only — terminal and archived go to the archive panel
+    const base = this._activeFilter === 'ALL'
       ? this._collection.getAll()
       : this._collection.filterByStatus(this._activeFilter);
 
-    // Non-terminal first, then newest-first within each group
-    items.sort((a, b) => {
-      const aT = TERMINAL_STATUSES.includes(a.get('status'));
-      const bT = TERMINAL_STATUSES.includes(b.get('status'));
-      if (aT !== bT) return aT ? 1 : -1;
-      return new Date(b.get('added_at')) - new Date(a.get('added_at'));
-    });
+    const items = base.filter(
+      m => !TERMINAL_STATUSES.includes(m.get('status')) && !m.get('is_archived')
+    );
+
+    // Newest-first (all active items have equal priority in ordering)
+    items.sort((a, b) => new Date(b.get('added_at')) - new Date(a.get('added_at')));
 
     if (items.length === 0) {
       const li = document.createElement('li');
@@ -306,6 +337,57 @@ export class TodoListComponent extends HTMLElement {
     }
 
     this._updateCount();
+    this._refreshArchive();
+  }
+
+  _refreshArchive() {
+    const list = this._shadow.querySelector('[data-archive-list]');
+    const countEl = this._shadow.querySelector('[data-archive-count]');
+    if (!list) return;
+
+    const archived = this._collection.getAll()
+      .filter(m => TERMINAL_STATUSES.includes(m.get('status')) || m.get('is_archived'))
+      .sort((a, b) => {
+        const dateA = a.get('completed_at') || a.get('amended_at');
+        const dateB = b.get('completed_at') || b.get('amended_at');
+        return new Date(dateB) - new Date(dateA);
+      });
+
+    if (countEl) countEl.textContent = archived.length;
+
+    if (archived.length === 0) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 5;
+      td.className = 'todo-archive__empty';
+      td.textContent = 'No archived tasks.';
+      tr.appendChild(td);
+      list.replaceChildren(tr);
+    } else {
+      list.innerHTML = archived.map(m => this._renderArchiveRow(m)).join('');
+    }
+  }
+
+  _renderArchiveRow(model) {
+    const data = model.toJSON();
+    const colour = STATUS_COLOURS[data.status] || 'grey';
+    const priColour = PRIORITY_COLOURS[data.priority] || 'slate';
+    const date = data.completed_at || data.amended_at;
+
+    return `
+      <tr class="todo-archive__row" data-archive-item-id="${esc(data.id)}">
+        <td class="todo-archive__detail" title="${esc(data.detail)}">${esc(data.detail)}</td>
+        <td><span class="todo-badge todo-badge--${esc(colour)}">${esc(STATUS_LABELS[data.status])}</span></td>
+        <td><span class="todo-badge todo-badge--${esc(priColour)}">${esc(PRIORITY_LABELS[data.priority])}</span></td>
+        <td class="todo-archive__date">${esc(date ? this._formatDate(date) : '—')}</td>
+        <td>
+          <div class="todo-archive__actions">
+            <button class="todo-archive__btn" data-restore="${esc(data.id)}" title="Restore to active list">Restore</button>
+            <button class="todo-archive__btn todo-archive__btn--danger" data-purge="${esc(data.id)}" title="Permanently delete">✕</button>
+          </div>
+        </td>
+      </tr>
+    `;
   }
 
   /**
@@ -330,13 +412,10 @@ export class TodoListComponent extends HTMLElement {
       const overdue = !isTerminal && new Date(data.due_at) < new Date();
       metaHtml += `<span class="todo-item__due${overdue ? ' is-overdue' : ''}">${esc(this._formatDate(data.due_at))}</span>`;
     }
-    if (data.priority && data.priority !== PRIORITY.MED) {
-      metaHtml += `<span class="todo-badge todo-badge--${esc(priColour)}" style="cursor:default">${esc(PRIORITY_LABELS[data.priority])}</span>`;
-    }
 
-    // ── status dropdown (enum values from frozen constants → esc()) ──────
+    // ── status dropdown ──────────────────────────────────────────────────
     const enabledStatuses = cfg.statuses.enabled;
-    const dropdownOptions = enabledStatuses.map(s => `
+    const statusOptions = enabledStatuses.map(s => `
       <div class="todo-status-option${s === data.status ? ' is-current' : ''}"
            data-status-option="${esc(s)}"
            data-item-id="${esc(data.id)}">
@@ -344,10 +423,19 @@ export class TodoListComponent extends HTMLElement {
       </div>
     `).join('');
 
+    // ── priority dropdown ────────────────────────────────────────────────
+    const priorityOptions = Object.values(PRIORITY).map(p => `
+      <div class="todo-status-option${p === data.priority ? ' is-current' : ''}"
+           data-priority-option="${esc(p)}"
+           data-item-id="${esc(data.id)}">
+        <span class="todo-badge todo-badge--${esc(PRIORITY_COLOURS[p])}">${esc(PRIORITY_LABELS[p])}</span>
+      </div>
+    `).join('');
+
     return `
-      <li class="todo-item${data.is_archived ? ' is-archived' : ''}" data-item-id="${esc(data.id)}">
+      <li class="todo-item" data-item-id="${esc(data.id)}">
         <div class="todo-item__body">
-          <div class="todo-item__detail${isTerminal ? ' is-terminal' : ''}"
+          <div class="todo-item__detail"
                data-edit-detail="${esc(data.id)}"
                title="Click to edit"
                tabindex="0"
@@ -364,10 +452,20 @@ export class TodoListComponent extends HTMLElement {
               aria-label="Change status: ${esc(STATUS_LABELS[data.status])}"
             >${esc(STATUS_LABELS[data.status])}</button>
             <div class="todo-status-dropdown" data-status-dropdown="${esc(data.id)}">
-              ${dropdownOptions}
+              ${statusOptions}
             </div>
           </div>
-          <button class="todo-delete-btn" data-delete="${esc(data.id)}" aria-label="Delete task" title="Delete">
+          <div class="todo-priority-picker" data-priority-picker>
+            <button
+              class="todo-badge todo-badge--${esc(priColour)}"
+              data-priority-badge="${esc(data.id)}"
+              aria-label="Change priority: ${esc(PRIORITY_LABELS[data.priority])}"
+            >${esc(PRIORITY_LABELS[data.priority])}</button>
+            <div class="todo-priority-dropdown" data-priority-dropdown="${esc(data.id)}">
+              ${priorityOptions}
+            </div>
+          </div>
+          <button class="todo-delete-btn" data-delete="${esc(data.id)}" aria-label="Archive task" title="Archive">
             ${ICON_TRASH}
           </button>
         </div>
@@ -376,15 +474,15 @@ export class TodoListComponent extends HTMLElement {
   }
 
   _updateCount() {
-    const all = this._collection.getAll();
-    const active = all.filter(m => !TERMINAL_STATUSES.includes(m.get('status')));
+    const active = this._collection.getAll()
+      .filter(m => !TERMINAL_STATUSES.includes(m.get('status')) && !m.get('is_archived'));
 
     const countEl = this._shadow.querySelector('[data-count]');
-    if (countEl) countEl.textContent = all.length;
+    if (countEl) countEl.textContent = active.length;
 
     const footerEl = this._shadow.querySelector('[data-footer-text]');
     if (footerEl) {
-      footerEl.textContent = `${active.length} active · ${all.length} total`;
+      footerEl.textContent = `${active.length} active`;
     }
   }
 
@@ -458,8 +556,15 @@ export class TodoListComponent extends HTMLElement {
     };
     document.addEventListener('click', this._outsideClickHandler);
 
-    root.querySelector('[data-clear-completed]')?.addEventListener('click', () => {
-      this._collection.clearCompleted();
+    root.querySelector('[data-archive-toggle]')?.addEventListener('click', () => {
+      this._archiveCollapsed = !this._archiveCollapsed;
+      this._syncArchiveCollapseState();
+    });
+
+    root.querySelector('[data-archive-list]')?.addEventListener('click', e => this._handleArchiveClick(e));
+
+    root.querySelector('[data-clear-archive]')?.addEventListener('click', () => {
+      this._collection.clearArchive();
     });
   }
 
@@ -491,9 +596,9 @@ export class TodoListComponent extends HTMLElement {
   }
 
   _handleListClick(e) {
-    const badge = e.target.closest('[data-status-badge]');
-    if (badge) {
-      const id = badge.dataset.statusBadge;
+    const statusBadge = e.target.closest('[data-status-badge]');
+    if (statusBadge) {
+      const id = statusBadge.dataset.statusBadge;
       const dropdown = this._shadow.querySelector(`[data-status-dropdown="${CSS.escape(id)}"]`);
       if (dropdown) {
         this._closeAllDropdowns(dropdown);
@@ -502,11 +607,31 @@ export class TodoListComponent extends HTMLElement {
       return;
     }
 
-    const option = e.target.closest('[data-status-option]');
-    if (option) {
-      const { statusOption, itemId } = option.dataset;
+    const statusOption = e.target.closest('[data-status-option]');
+    if (statusOption) {
+      const { statusOption: s, itemId } = statusOption.dataset;
       const model = this._collection.get(itemId);
-      if (model) model.set('status', statusOption);
+      if (model) model.set('status', s);
+      this._closeAllDropdowns();
+      return;
+    }
+
+    const priorityBadge = e.target.closest('[data-priority-badge]');
+    if (priorityBadge) {
+      const id = priorityBadge.dataset.priorityBadge;
+      const dropdown = this._shadow.querySelector(`[data-priority-dropdown="${CSS.escape(id)}"]`);
+      if (dropdown) {
+        this._closeAllDropdowns(dropdown);
+        dropdown.classList.toggle('is-open');
+      }
+      return;
+    }
+
+    const priorityOption = e.target.closest('[data-priority-option]');
+    if (priorityOption) {
+      const { priorityOption: p, itemId } = priorityOption.dataset;
+      const model = this._collection.get(itemId);
+      if (model) model.set('priority', p);
       this._closeAllDropdowns();
       return;
     }
@@ -575,7 +700,7 @@ export class TodoListComponent extends HTMLElement {
 
   async _handleDelete(id) {
     if (this._config.ui.confirmOnDelete) {
-      const confirmed = window.confirm('Delete this task?');
+      const confirmed = window.confirm('Archive this task?');
       if (!confirmed) return;
     }
 
@@ -585,13 +710,52 @@ export class TodoListComponent extends HTMLElement {
       await new Promise(r => setTimeout(r, 200));
     }
 
-    this._collection.remove(id);
+    const model = this._collection.get(id);
+    if (model) model.set('is_archived', true);
   }
 
   _closeAllDropdowns(except = null) {
-    this._shadow.querySelectorAll('.todo-status-dropdown.is-open').forEach(d => {
+    this._shadow.querySelectorAll('.todo-status-dropdown.is-open, .todo-priority-dropdown.is-open').forEach(d => {
       if (d !== except) d.classList.remove('is-open');
     });
+  }
+
+  _handleArchiveClick(e) {
+    const restoreBtn = e.target.closest('[data-restore]');
+    if (restoreBtn) {
+      const model = this._collection.get(restoreBtn.dataset.restore);
+      if (model) {
+        const updates = { is_archived: false };
+        if (TERMINAL_STATUSES.includes(model.get('status'))) {
+          updates.status = STATUS.NYS;
+          updates.completed_at = null;
+        }
+        model.set(updates);
+      }
+      return;
+    }
+
+    const purgeBtn = e.target.closest('[data-purge]');
+    if (purgeBtn) {
+      this._collection.remove(purgeBtn.dataset.purge);
+    }
+  }
+
+  _syncArchiveCollapseState() {
+    const body = this._shadow.querySelector('[data-archive-body]');
+    const toggle = this._shadow.querySelector('[data-archive-toggle]');
+    const chevron = toggle?.querySelector('.todo-archive__chevron');
+    if (!body || !toggle) return;
+
+    if (this._archiveCollapsed) {
+      body.classList.remove('is-open');
+      toggle.setAttribute('aria-expanded', 'false');
+      chevron?.classList.remove('is-open');
+    } else {
+      body.classList.add('is-open');
+      toggle.setAttribute('aria-expanded', 'true');
+      chevron?.classList.add('is-open');
+    }
   }
 
   _cleanup() {
@@ -636,12 +800,24 @@ export class TodoListComponent extends HTMLElement {
     return this._collection.remove(id);
   }
 
+  /**
+   * Soft-archive an item by id — moves it to the archive panel without permanent deletion.
+   * @param {string} id
+   * @returns {boolean} True if the item existed and was archived
+   */
+  archiveItem(id) {
+    const model = this._collection.get(id);
+    if (!model) return false;
+    model.set('is_archived', true);
+    return true;
+  }
+
   /** @returns {Array<Record<string,*>>} */
   getItems() {
     return this._collection.getAll().map(m => m.toJSON());
   }
 
   clearCompleted() {
-    this._collection.clearCompleted();
+    this._collection.clearArchive();
   }
 }
