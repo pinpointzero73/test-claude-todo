@@ -42,13 +42,6 @@
     }
     .event-log__entry { margin: 0.125rem 0; line-height: 1.5; }
     .event-log__type { color: #818cf8; }
-
-    /* Theming demo */
-    .demo-themed {
-      --todo-primary: #059669;
-      --todo-primary-hover: #047857;
-      --todo-border-focus: #059669;
-    }
   </style>
 </head>
 <body>
@@ -62,16 +55,6 @@
       id="todo-main"
       config-url="./todo.config.json"
     ></todo-list>
-
-    <div>
-      <p class="demo-meta" style="margin-bottom:0.75rem;">Themed instance (green primary)</p>
-      <todo-list
-        id="todo-themed"
-        class="demo-themed"
-        config-url="./todo.config.json"
-        owner="demo"
-      ></todo-list>
-    </div>
 
     <div>
       <div class="event-log__title">Custom Event Log</div>
@@ -91,7 +74,6 @@
       entryCount++;
       if (entryCount === 1) log.textContent = '';
 
-      // Build entry using DOM methods — no innerHTML with untrusted data
       const entry = document.createElement('div');
       entry.className = 'event-log__entry';
 
@@ -102,7 +84,6 @@
       const sep = document.createTextNode(' — ');
 
       const detailSpan = document.createElement('span');
-      // Safely serialise detail; textContent prevents any HTML injection
       detailSpan.textContent = JSON.stringify(e.detail?.item?.detail ?? e.detail);
 
       entry.appendChild(typeSpan);

@@ -118,12 +118,15 @@
 
 /* ─── Collapsible body ────────────────────────────────────────────────────── */
 .todo-body {
-  overflow: hidden;
+  /* overflow is managed by JS (_syncCollapseState):
+     - set to 'hidden' during collapse/expand animation so content clips correctly
+     - cleared after expand transition completes so the status dropdown can overflow */
   transition: max-height 0.25s ease;
 }
 
 .todo-body.is-collapsed {
   max-height: 0 !important;
+  overflow: hidden; /* must hide when fully collapsed */
 }
 
 /* ─── Filter bar ──────────────────────────────────────────────────────────── */

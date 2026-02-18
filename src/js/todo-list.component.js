@@ -257,8 +257,11 @@ export class TodoListComponent extends HTMLElement {
     `;
 
     const body = this._shadow.querySelector('[data-body]');
-    if (!this._collapsed) {
+    if (this._collapsed) {
+      // CSS .is-collapsed handles overflow:hidden + max-height:0
+    } else {
       body.style.maxHeight = '2000px';
+      // overflow defaults to visible — dropdown can extend beyond body bounds
     }
   }
 
@@ -391,12 +394,19 @@ export class TodoListComponent extends HTMLElement {
     if (!body || !btn) return;
 
     if (this._collapsed) {
+      // Apply overflow:hidden BEFORE max-height collapses so content clips during animation
+      body.style.overflow = 'hidden';
       body.classList.add('is-collapsed');
       btn.innerHTML = ICON_EYE_OFF;
       btn.title = 'Show list';
     } else {
+      // Keep overflow:hidden during expand animation, then clear it so dropdown can overflow
+      body.style.overflow = 'hidden';
       body.style.maxHeight = '2000px';
       body.classList.remove('is-collapsed');
+      body.addEventListener('transitionend', () => {
+        body.style.overflow = '';
+      }, { once: true });
       btn.innerHTML = ICON_EYE;
       btn.title = 'Hide list';
     }

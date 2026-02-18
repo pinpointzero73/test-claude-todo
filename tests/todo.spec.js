@@ -57,19 +57,29 @@ test('add form has a status selector and respects chosen status', async ({ page 
 });
 
 // ─── 3a. Status change — dropdown is visible (not clipped by overflow:hidden) ─
-test('status dropdown is visually visible after opening', async ({ page }) => {
+test('status dropdown options are visible and not clipped after adding a task', async ({ page }) => {
   await todo(page).locator('[data-input-detail]').fill('Overflow test');
   await todo(page).locator('[data-add-submit]').click();
 
   const badge = todo(page).locator('[data-status-badge]').first();
   await badge.click();
 
-  // The dropdown must be visible in the viewport, not clipped
+  // Dropdown must be visible (not display:none or clipped by overflow:hidden)
   const dropdown = todo(page).locator('.todo-status-dropdown.is-open').first();
   await expect(dropdown).toBeVisible();
-  const box = await dropdown.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box.height).toBeGreaterThan(0);
+
+  // Every status option inside the open dropdown must have a non-zero bounding box,
+  // proving overflow:hidden on .todo-body is not clipping them
+  const options = todo(page).locator('.todo-status-dropdown.is-open .todo-status-option');
+  const count = await options.count();
+  expect(count).toBeGreaterThan(0);
+
+  for (let i = 0; i < count; i++) {
+    const box = await options.nth(i).boundingBox();
+    expect(box, `Status option ${i} has no bounding box — likely clipped`).not.toBeNull();
+    expect(box.height, `Status option ${i} height is zero — likely clipped`).toBeGreaterThan(0);
+    expect(box.width, `Status option ${i} width is zero — likely clipped`).toBeGreaterThan(0);
+  }
 });
 
 // ─── 3b. Status change via badge dropdown ─────────────────────────────────────
