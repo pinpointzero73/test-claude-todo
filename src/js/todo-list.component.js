@@ -333,7 +333,13 @@ export class TodoListComponent extends HTMLElement {
     return `
       <li class="todo-item${data.is_archived ? ' is-archived' : ''}" data-item-id="${esc(data.id)}">
         <div class="todo-item__body">
-          <div class="todo-item__detail${isTerminal ? ' is-terminal' : ''}">${esc(data.detail)}</div>
+          <div class="todo-item__detail${isTerminal ? ' is-terminal' : ''}"
+               data-edit-detail="${esc(data.id)}"
+               title="Click to edit"
+               tabindex="0"
+               role="button"
+               aria-label="Edit task: ${esc(data.detail)}"
+          >${esc(data.detail)}</div>
           ${metaHtml ? `<div class="todo-item__meta">${metaHtml}</div>` : ''}
         </div>
         <div class="todo-item__actions">
@@ -411,6 +417,17 @@ export class TodoListComponent extends HTMLElement {
 
     root.querySelector('[data-list]')?.addEventListener('click', e => this._handleListClick(e));
 
+    // Keyboard activation for inline-edit detail elements (accessibility)
+    root.querySelector('[data-list]')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        const detailEl = e.target.closest('[data-edit-detail]');
+        if (detailEl && !detailEl.querySelector('input')) {
+          e.preventDefault();
+          this._startInlineEdit(detailEl);
+        }
+      }
+    });
+
     // composedPath() traverses shadow root boundaries — check if the host
     // appears anywhere in the path to determine if click is inside the component
     this._outsideClickHandler = e => {
@@ -475,7 +492,63 @@ export class TodoListComponent extends HTMLElement {
     const deleteBtn = e.target.closest('[data-delete]');
     if (deleteBtn) {
       this._handleDelete(deleteBtn.dataset.delete);
+      return;
     }
+
+    // Inline edit — click on task detail text
+    const detailEl = e.target.closest('[data-edit-detail]');
+    if (detailEl && !detailEl.querySelector('input')) {
+      this._startInlineEdit(detailEl);
+    }
+  }
+
+  /**
+   * Replace the detail <div> content with an inline <input> for editing.
+   * Saves on blur or Enter; cancels on Escape.
+   */
+  _startInlineEdit(detailEl) {
+    const id = detailEl.dataset.editDetail;
+    const model = this._collection.get(id);
+    if (!model) return;
+
+    const currentValue = model.get('detail');
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = currentValue;
+    input.maxLength = 500;
+    input.className = 'todo-input todo-input--inline-edit';
+    input.setAttribute('data-inline-edit-input', id);
+    input.style.cssText = 'width:100%;box-sizing:border-box;';
+
+    detailEl.textContent = '';
+    detailEl.appendChild(input);
+    detailEl.classList.add('is-editing');
+
+    const save = () => {
+      const newVal = input.value.trim();
+      if (newVal && newVal !== currentValue) {
+        model.set('detail', newVal);
+      } else {
+        // Revert without triggering a full re-render
+        detailEl.textContent = currentValue;
+        detailEl.classList.remove('is-editing');
+      }
+      // Full re-render will replace the input with the saved value
+    };
+
+    input.addEventListener('blur', save, { once: true });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+      if (e.key === 'Escape') {
+        input.removeEventListener('blur', save);
+        detailEl.textContent = currentValue;
+        detailEl.classList.remove('is-editing');
+      }
+    });
+
+    input.focus();
+    input.select();
   }
 
   async _handleDelete(id) {

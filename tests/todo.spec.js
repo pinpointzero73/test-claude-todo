@@ -150,7 +150,28 @@ test('clears completed items via footer button', async ({ page }) => {
   await expect(todo(page).locator('.todo-empty__text')).toBeVisible();
 });
 
-// ─── 10. Public API ───────────────────────────────────────────────────────────
+// ─── 10. Inline edit ──────────────────────────────────────────────────────────
+test('edits task detail inline on click', async ({ page }) => {
+  await todo(page).locator('[data-input-detail]').fill('Original text');
+  await todo(page).locator('[data-add-submit]').click();
+
+  // Click the detail text to enter edit mode
+  await todo(page).locator('[data-edit-detail]').first().click();
+
+  // Input should appear with current value
+  const inlineInput = todo(page).locator('[data-inline-edit-input]').first();
+  await expect(inlineInput).toBeVisible();
+  await expect(inlineInput).toHaveValue('Original text');
+
+  // Type new value and press Enter to save
+  await inlineInput.fill('Updated text');
+  await inlineInput.press('Enter');
+
+  // Detail should reflect the new value
+  await expect(todo(page).locator('.todo-item__detail').first()).toContainText('Updated text');
+});
+
+// ─── 11. Public API ───────────────────────────────────────────────────────────
 test('addItem() public API works', async ({ page }) => {
   await page.evaluate(() => {
     document.querySelector('todo-list').addItem({ detail: 'Added via API' });
